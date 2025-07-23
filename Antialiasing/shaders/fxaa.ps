@@ -1,0 +1,162 @@
+#version 330 core
+
+#define FXAA_EDGE_THRESHOLD_MIN 0.0833
+#define FXAA_EDGE_THRESHOLD 0.0125
+#define FXAA_SUBPIX_TRIM 0
+#define FXAA_SUBPIX_TRIM_SCALE 4
+#define FXAA_SUBPIX_GAP 0.5
+#define FXAA_SEARCH_STEPS 16
+#define FXAA_SEARCH_STEP_SCALE 1
+
+out vec4 FragColor;
+
+in vec2 texPos;
+
+uniform sampler2D tex;
+
+
+
+uniform float offsetWidth;
+uniform float offsetHeight;
+
+float luma(vec3 rgb)
+{
+	return dot(rgb, vec3(0.299, 0.507, 0.114));
+}
+
+void main()
+{
+    vec3 rgbN = texture(tex, texPos + vec2(0.0, -offsetHeight)).rgb;
+    vec3 rgbW = texture(tex, texPos + vec2(-offsetWidth, 0.0)).rgb;
+    vec3 rgbE = texture(tex, texPos + vec2(offsetWidth, 0.0)).rgb;
+    vec3 rgbS = texture(tex, texPos + vec2(0.0, offsetHeight)).rgb;
+    vec3 rgbM = texture(tex, texPos).rgb;
+
+    vec3 rgbL = rgbN + rgbW + rgbE + rgbS + rgbM;
+
+    float lumaN = luma(rgbN);
+    float lumaW = luma(rgbW);
+    float lumaE = luma(rgbE);
+    float lumaS = luma(rgbS);
+    float lumaM = luma(rgbM);
+
+    float rangeMin = min(lumaM, min(min(lumaN, lumaW), min(lumaS, lumaE)));
+    float rangeMax = max(lumaM, max(max(lumaN, lumaW), max(lumaS, lumaE)));
+    float range = rangeMax - rangeMin;
+    if(range < max(FXAA_EDGE_THRESHOLD_MIN, rangeMax * FXAA_EDGE_THRESHOLD))
+	{
+		// No edge detected, return the original color
+		FragColor = vec4(rgbM, 1.0);
+		return;
+        }
+    
+    vec3 rgbNW = texture(tex, texPos + vec2(-offsetWidth, -offsetHeight)).rgb;
+    vec3 rgbNE = texture(tex, texPos + vec2(offsetWidth, -offsetHeight)).rgb;
+    vec3 rgbSW = texture(tex, texPos + vec2(-offsetWidth, offsetHeight)).rgb;
+    vec3 rgbSE = texture(tex, texPos + vec2(offsetWidth, offsetHeight)).rgb;
+
+    float lumaNW = luma(rgbNW);
+    float lumaNE = luma(rgbNE);
+    float lumaSW = luma(rgbSW);
+    float lumaSE = luma(rgbSE);
+
+    rgbL += rgbNW + rgbNE + rgbSW + rgbSE;
+    rgbL *= vec3(1.0/9.0, 1.0/9.0, 1.0/9.0);
+
+
+//    float lumaL = (lumaNW + lumaN + lumaNE + lumaW + lumaE + lumaSW + lumaS + lumaSE) / 8.0;
+    float lumaL = (lumaN + lumaW + lumaE + lumaS) / 4.0;
+    float rangeL = abs(lumaL - lumaM);
+    float blendL = max(0.0, (rangeL / range) - FXAA_SUBPIX_TRIM) * FXAA_SUBPIX_TRIM_SCALE;
+    blendL= min(FXAA_SUBPIX_GAP, blendL);
+
+    float edgeVert = 
+        abs((0.25 * lumaNW) + (-0.5 * lumaN) + (0.25 * lumaNE)) +
+	    abs(( 0.5 * lumaW ) + (-1.0 * lumaM) + (0.5  * lumaE )) +
+        abs((0.25 * lumaSW) + (-0.5 * lumaS) + (0.25 * lumaSE));
+
+    float edgeHorz = 
+        abs((0.25 * lumaNW) + (-0.5 * lumaW) + (0.25 * lumaSW)) +
+	    abs(( 0.5 * lumaN ) + (-1.0 * lumaM) + (0.5  * lumaS )) +
+        abs((0.25 * lumaNE) + (-0.5 * lumaE) + (0.25 * lumaSE));
+
+    bool horzSpan = edgeHorz >= edgeVert;
+//    if (horzSpan){
+//        FragColor = vec4(0.8, 0.6, 0.3, 1.0);
+//    } else {
+//        FragColor = vec4(0.3, 0.0, 0.8, 1.0);
+//    }
+
+
+    // Determina a direção da borda
+    vec2 dir = horzSpan ? vec2(offsetWidth, 0.0) : vec2(0.0, offsetHeight);
+
+    bool donePositiveDirection = false;
+    float stepPositiveDirection = 0.0;
+    bool doneNegativeDirection = false;
+    float stepNegativeDirection = 0.0;
+    const int maxSteps = FXAA_SEARCH_STEPS; // Limite de passos para evitar loops infinitos
+
+    for (int i = 1; i <= maxSteps; ++i) {
+        vec2 pos = texPos + dir * float(i);
+        if (!donePositiveDirection){ 
+            float lumaSample1 = luma(texture(tex, pos).rgb);
+            if (abs(lumaSample1 - lumaM) > range * 0.25) {
+                stepPositiveDirection = float(i);
+                donePositiveDirection = true;
+                break;
+            }
+        }
+        if (!doneNegativeDirection){ 
+            float lumaSample2 = luma(texture(tex, -pos).rgb);
+            if (abs(lumaSample2 - lumaM) > range * 0.25) {
+		        stepNegativeDirection = float(i);
+                doneNegativeDirection = true;
+		        break;
+            }
+	    }
+    }
+
+
+
+//    float edgeThickness = stepNegativeDirection + stepPositiveDirection;
+//    float pixelOffset = -min(stepNegativeDirection, stepPositiveDirection) / edgeThickness + 0.5;
+//
+//    float lumaAverage = (1.0/12.0) * (2.0 * (lumaN + lumaE) + lumaNW + lumaSW + lumaNE + lumaSE);
+//
+//    float subPixelOffet1 = clamp(abs(lumaAverage - lumaM) / range, 0.0, 1.0);
+//    float subPixelOffet2 = (-2.0 * subPixelOffet1 + 3.0) * subPixelOffet1 * subPixelOffet1;
+//
+//    float finalOffset = max(pixelOffset, subPixelOffet2 * subPixelOffet2);
+//
+//    vec2 finalUv = texPos;
+//
+//    if(horzSpan ) {
+//		finalUv.x += dir.x * finalOffset;
+//	} else {
+//		finalUv.y += dir.y * finalOffset;
+//	}
+//
+//    FragColor = vec4(texture(tex, finalUv).rgb, 1.0);
+
+    // Calcula a posição de blend adaptativo
+    float blendAmount = blendL * max(stepPositiveDirection, stepNegativeDirection) * 1.25;
+    vec2 blendPos = clamp(texPos + dir * blendAmount, 0.0, 1.0);
+
+    // Amostra a cor suavizada
+    vec3 rgbBlend = texture(tex, blendPos).rgb;
+
+    // Faz o blend final
+    FragColor = vec4(mix(rgbM, rgbBlend, blendL), 1.0);
+
+
+
+
+//
+//    FragColor = vec4(
+//		(lumaN + lumaW + lumaE + lumaS + lumaM) / 5.0,
+//		(lumaN + lumaW + lumaE + lumaS + lumaM) / 5.0,
+//		(lumaN + lumaW + lumaE + lumaS + lumaM) / 5.0,
+//		1.0
+//	);
+}

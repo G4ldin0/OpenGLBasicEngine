@@ -18,6 +18,6 @@ class Engine
 		Engine();
 		~Engine();
 
-		int Start(App* app);
+		int Start(App* app, const int width, const int height);
 };
 

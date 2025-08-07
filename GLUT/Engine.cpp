@@ -27,13 +27,13 @@ Engine::~Engine()
 	std::cout << "Engine terminated successfully.\n";
 }
 
-int Engine::Start(App* p_app)
+int Engine::Start(App* p_app, const int width, const int height)
 {
 	app = p_app;
 
 	window = new Window();
 
-	if (!window->Create("GLFW Engine", 800, 600))
+	if (!window->Create("GLFW Engine", width, height))
 	{
 		window->Destroy();
 		return -1;
@@ -113,6 +113,7 @@ int Engine::Loop()
 			app->Update(deltaTime);
 			app->Render();
 		}
+		glfwPollEvents();
 	}
 
 	app->Finalize();

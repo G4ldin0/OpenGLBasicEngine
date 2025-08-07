@@ -48,14 +48,30 @@ struct Mesh {
 	}
 };
 
-float triangleVertices[] = {
-	-0.75f, -0.75f, 0.0f, // Bottom left vertex
-	0.75f, -0.75f, 0.0f,  // Bottom right vertex
-	0.0f,  0.75f, 0.0f   // Top vertex
+float dodecahedronVertices[] = {
+    // Vertices of a dodecahedron
+    -1.0f,  1.618f,  0.0f, 
+        1.0f,  1.618f,  0.0f, 
+    -1.0f, -1.618f,  0.0f, 
+        1.0f, -1.618f,  0.0f, 
+        0.0f, -1.0f,  1.618f, 
+        0.0f,  1.0f,  1.618f, 
+        0.0f, -1.0f, -1.618f, 
+        0.0f,  1.0f, -1.618f, 
+        1.618f,  0.0f, -1.0f, 
+        1.618f,  0.0f,  1.0f, 
+    -1.618f,  0.0f, -1.0f, 
+    -1.618f,  0.0f,  1.0f
 };
 
-GLuint triangleIndices [] = {
-	0, 1, 2 // Triangle indices
+GLuint dodecahedronIndices[] = {
+    0, 8, 4,  0, 4, 1,  0, 1, 9,  0, 9, 8,
+    1, 4, 5,  1, 5, 10,  1, 10, 9,  9, 10, 8,
+    4, 8, 6,  4, 6, 5,  5, 6, 11,  5, 11, 10,
+    6, 8, 9,  6, 9, 11,  11, 9, 10,  11, 10, 5,
+    2, 3, 7,  2, 7, 6,  2, 6, 4,  2, 4, 3,
+    3, 4, 1,  3, 1, 7,  7, 1, 0,  7, 0, 2,
+    3, 7, 6,  3, 6, 2,  2, 0, 1,  2, 1, 3
 };
 
 float screenQuadVertices[] = {
@@ -85,13 +101,13 @@ private:
 
 	float time_passed = 0.0f;
 
-	GLuint aa = 0;
+	GLuint aa = 2;
 
 	// simples framebuffer
 	GLuint FBO, colorTexture, RBO;
 
 	GLuint msFBO, msColorbuffer, msRBO;
-	GLuint samples = 16;
+	GLuint samples = 8;
 
 	GLuint fxaaFBO, fxaaTextureColorBuffer, fxaaRBO; // FBO para FXAA
 
@@ -132,9 +148,9 @@ public:
 		glGenVertexArrays(1, &VAO);
 		glBindVertexArray(VAO);
 		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(triangleVertices), triangleVertices, GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(dodecahedronVertices), dodecahedronVertices, GL_STATIC_DRAW);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(triangleIndices), triangleIndices, GL_STATIC_DRAW);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(dodecahedronIndices), dodecahedronIndices, GL_STATIC_DRAW);
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 		glEnableVertexAttribArray(0);
 		glBindVertexArray(0);
@@ -241,7 +257,6 @@ public:
 		glEnable(GL_DEPTH_TEST);
 
 		shader->Use();
-		shader->SetFloat("green_level", green_level);
 		glUniformMatrix4fv(glGetUniformLocation(shader->ID, "model"), 1, GL_FALSE, glm::value_ptr(transform));
 		glUniformMatrix4fv(glGetUniformLocation(shader->ID, "view"), 1, GL_FALSE, glm::value_ptr(view));
 		glUniformMatrix4fv(glGetUniformLocation(shader->ID, "projection"), 1, GL_FALSE, glm::value_ptr(proj));
@@ -252,7 +267,7 @@ public:
 				glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 				glBindVertexArray(VAO);
-				glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+				glDrawElements(GL_TRIANGLES, 84, GL_UNSIGNED_INT, 0);
 				glBindFramebuffer(GL_READ_FRAMEBUFFER, FBO);
 				break;
 
@@ -261,17 +276,17 @@ public:
 				glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 				glBindVertexArray(VAO);
-				glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+				glDrawElements(GL_TRIANGLES, 84, GL_UNSIGNED_INT, 0);
 
 
 				glBindFramebuffer(GL_FRAMEBUFFER, fxaaFBO);
 				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 				fxaaShader->Use();
-				fxaaShader->SetFloat("offsetWidth", 1.0f / (Window::width / 2.0f));
-				fxaaShader->SetFloat("offsetHeight", 1.0f / (Window::height / 2.0f));
+				fxaaShader->SetFloat("offsetWidth", 1.0f / (Window::width));
+				fxaaShader->SetFloat("offsetHeight", 1.0f / (Window::height));
 				glBindTexture(GL_TEXTURE_2D, colorTexture);
 				glBindVertexArray(screenVAO);
-				glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+				glDrawElements(GL_TRIANGLES, 84, GL_UNSIGNED_INT, 0);
 				glBindFramebuffer(GL_READ_FRAMEBUFFER, fxaaFBO);
 				break;
 
@@ -281,7 +296,7 @@ public:
 				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 				glEnable(GL_MULTISAMPLE);
 				glBindVertexArray(VAO);
-				glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+				glDrawElements(GL_TRIANGLES, 84, GL_UNSIGNED_INT, 0);
 				glDisable(GL_MULTISAMPLE);
 				glBindBuffer(GL_READ_FRAMEBUFFER, msFBO);
 				break;
@@ -301,8 +316,6 @@ public:
 
 
 		glfwSwapBuffers(Window::currentWindow);
-		glfwPollEvents();
-
 	}
 
 	void Finalize() override {
@@ -379,7 +392,7 @@ int main()
 	Engine engine;
 	BasicApp app;
 
-	engine.Start(&app);
+	engine.Start(&app, 1200, 800);
 
 	return 0;
 }
